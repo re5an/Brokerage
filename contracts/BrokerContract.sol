@@ -190,7 +190,7 @@ contract BrokerageContract {
 
 
     /*--------< This part is for panic times which we want to lock every important functionality >--------*/
-    bool locked = false;
+    bool public locked = false;
 
     function lockContract() public onlyUsers {
         locked = true;
@@ -211,7 +211,7 @@ contract BrokerageContract {
     /*----------------<>*/
 
     /*--------< This part is for times that they have disagreements and need to go to Judge >--------*/
-    bool userLocked = false;
+    bool public userLocked = false;
 
     function userLockContract() public onlyUsers {
         userLocked = true;

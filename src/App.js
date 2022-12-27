@@ -2,7 +2,7 @@ import logo from './logo.svg';
 import './App.css';
 import Web3 from "web3";
 import BrokerABI from "./contracts/BrokerContractABI.json";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const ss = console.log;
 
@@ -47,7 +47,7 @@ function App() {
       try {
         // Access smart contracts
         // console.log(BrokerABI);
-        brokerContract = new web3.eth.Contract(BrokerABI, '0x081F9696f405Ca5A3093066802eAF444f07f2D96');
+        brokerContract = new web3.eth.Contract(BrokerABI, '0xd3cCC38222005BBC6510B835c4542eA42424528b');
         // brokerContract = new web3.eth.Contract(BrokerABI, '0xa46D20eC5063AC7F9876BEd67c4C5287F4d5A999');
         setIsLoggedIn(true);
 
@@ -66,8 +66,8 @@ function App() {
     const brokerAddress = await brokerContract.methods.brokerAddress().call();
     setBrokerAddress(brokerAddress);
 
-    const contractAmount = await brokerContract.methods.totalAmount().call();
-    if (totalAmount > 0) setContractAmount(contractAmount);
+    const totalAmount = await brokerContract.methods.totalAmount().call();
+    if (totalAmount > 0) setTotalAmount(totalAmount);
 
     const adminAddress = await brokerContract.methods.admin().call();
     setAdmin(adminAddress);
@@ -90,6 +90,12 @@ function App() {
   const handleLogin = async () => {
     await loadWeb3();
   }
+
+  // useEffect(
+  //     async () => {
+  //       const data = await getInitialData();
+  //     }, []
+  // )
 
   const setBroker = async () => {
     try{
@@ -115,7 +121,7 @@ function App() {
     try{
       const receipt = await brokerContract.methods.adminSetTotalAmount(totalAmount).send({from: account});
       ss(receipt)
-      setContractAmount(totalAmount)
+      setTotalAmount(totalAmount)
     } catch (e) {
       ss("error setting Amount with error: ");
       ss(e)
@@ -193,9 +199,9 @@ function App() {
           {isBroker() && <h2>Welcome Broker</h2> }
           {isPayer() && <h2>Welcome Customer</h2> }
 
-          {contractAmount > 0 && <p>Amount: ${contractAmount}</p>}
+          {totalAmount > 0 && <p>Amount: ${totalAmount}</p>}
 
-          {contractAmount == 0 && <p> Amount Not set yet</p>}
+          {totalAmount == 0 && <p> Amount Not set yet</p>}
           {/*<p>admin = {admin}</p>*/}
           {/*<p>account = {account}</p>*/}
           {/*<p>broker = {brokerAddress}</p>*/}
@@ -204,7 +210,7 @@ function App() {
             <button onClick={setBroker}>Login as Broker</button>
           }
 
-          {contractAmount == 0 && isBroker() &&
+          {totalAmount == 0 && isBroker() &&
             <>
               <label htmlFor="amount">Enter Amount:</label>
               <input
@@ -217,7 +223,7 @@ function App() {
 
           }
 
-          {contractAmount != 0 && isBroker() &&
+          {totalAmount != 0 && isBroker() &&
             <>
               <label htmlFor="amount">Change Amount:</label>
               <input
@@ -229,7 +235,7 @@ function App() {
             </>
           }
 
-          {contractAmount != 0 && isLoggedIn && account != brokerAddress && payerAddress == '0x0000000000000000000000000000000000000000' &&
+          {totalAmount != 0 && isLoggedIn && account != brokerAddress && payerAddress == '0x0000000000000000000000000000000000000000' &&
             <>
               <p>You can Register yourself as Payer</p>
               <button onClick={setAmount}>Set Amount</button>
