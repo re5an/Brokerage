@@ -30,7 +30,7 @@ function App() {
       }
 
       const accounts = await web3.eth.getAccounts();
-      console.log(accounts)
+      // console.log(accounts)
 
       if (typeof accounts[0] !== "undefined") {
         const balance = await web3.eth.getBalance(accounts[0]);
@@ -44,7 +44,7 @@ function App() {
 
       try {
         // Access smart contracts
-        console.log(BrokerABI);
+        // console.log(BrokerABI);
         brokerContract = new web3.eth.Contract(BrokerABI, '0x081F9696f405Ca5A3093066802eAF444f07f2D96');
         // brokerContract = new web3.eth.Contract(BrokerABI, '0xa46D20eC5063AC7F9876BEd67c4C5287F4d5A999');
         setIsLoggedIn(true);
@@ -70,12 +70,12 @@ function App() {
     const adminAddress = await brokerContract.methods.admin().call();
     setAdmin(adminAddress);
 
-    const payerAddress = await brokerContract.methods.admin().call();
+    const payerAddress = await brokerContract.methods.payerAddress().call();
     setPayerAddress(payerAddress);
 
     ss('brokerAddress : ', brokerAddress)
-    ss('totalAmount : ', totalAmount)
-    ss('adminAddress : ', adminAddress)
+    // ss('totalAmount : ', totalAmount)
+    // ss('adminAddress : ', adminAddress)
 
   }
 
@@ -105,37 +105,58 @@ function App() {
 
   const setAmount = async () => {
     try{
-      const receipt = await brokerContract.methods.setAmount(totalAmount).send({from: account});
+      const receipt = await brokerContract.methods.adminSetTotalAmount(totalAmount).send({from: account});
       ss(receipt)
       setContractAmount(totalAmount)
     } catch (e) {
-      ss("error setting Broker with error: ");
+      ss("error setting Amount with error: ");
       ss(e)
     }
   }
 
 
+  const isBroker = () => {
+
+    // const result = isLoggedIn ?
+    //     account === brokerAddress :
+    //     false
+    //
+    // ss("result isBroker : "+ result)
+
+    return isLoggedIn ?
+        account === brokerAddress :
+        false
+  }
+
+  const isPayer = () => {
+    return isLoggedIn ?
+        account === payerAddress :
+        false
+  }
 
   return (
       <div className="App">
         <header className="App-header">
-          {isLoggedIn && brokerAddress == account &&
+          {/*{isLoggedIn && brokerAddress == account &&*/}
+          {isBroker() &&
           <h2>Welcome Broker</h2>
           }
-          {isLoggedIn && payerAddress == account &&
+          {isPayer() &&
           <h2>Welcome Customer</h2>
           }
 
           {contractAmount > 0 && <p>Amount: ${contractAmount}</p>}
+
           {contractAmount == 0 && <p> Amount Not set yet</p>}
-          <p>admin = {admin}</p>
-          <p>account = {account}</p>
+          {/*<p>admin = {admin}</p>*/}
+          {/*<p>account = {account}</p>*/}
+          {/*<p>broker = {brokerAddress}</p>*/}
 
           {brokerAddress == '0x0000000000000000000000000000000000000000' && isLoggedIn &&
-          <button onClick={setBroker}>save as Broker</button>
+            <button onClick={setBroker}>Login as Broker</button>
           }
 
-          {contractAmount == 0 && isLoggedIn &&
+          {contractAmount == 0 && isBroker() &&
           <>
             <label htmlFor="amount">Enter Amount:</label>
             <input
@@ -148,7 +169,7 @@ function App() {
 
           }
 
-          {contractAmount != 0 && isLoggedIn && account == brokerAddress &&
+          {contractAmount != 0 && isBroker() &&
           <>
             <label htmlFor="amount">Change Amount:</label>
             <input
@@ -169,6 +190,7 @@ function App() {
 
 
           {!isLoggedIn && <button onClick={handleLogin}> Please Login to continue</button>}
+          {/*{isLoggedIn && <button onClick={handleLogin}> Logout </button>}*/}
         </header>
       </div>
   );
