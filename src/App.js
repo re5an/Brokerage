@@ -11,6 +11,8 @@ let brokerContract;
 function App() {
 
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isLockedAdmin, setIsLockedAdmin] = useState(false)
+  const [isLockedUser, setIsLockedUser] = useState(false)
   const [account, setAccount] = useState("")
   const [brokerAddress, setBrokerAddress] = useState("")
   const [totalAmount, setTotalAmount] = useState(0)
@@ -70,6 +72,12 @@ function App() {
     const adminAddress = await brokerContract.methods.admin().call();
     setAdmin(adminAddress);
 
+    const isLockedAdmin = await brokerContract.methods.locked().call();
+    setIsLockedAdmin(isLockedAdmin);
+
+    const isLockedUser = await brokerContract.methods.userLocked().call();
+    setIsLockedUser(isLockedUser);
+
     const payerAddress = await brokerContract.methods.payerAddress().call();
     setPayerAddress(payerAddress);
 
@@ -114,6 +122,50 @@ function App() {
     }
   }
 
+  const lockContractUser = async () => {  //--- Both Payer and Broker can lock when they disagree
+    try{
+      const receipt = await brokerContract.methods.userLockContract().send({from: account});
+      ss(receipt)
+      setIsLockedUser(true)
+    } catch (e) {
+      ss("error setting Amount with error: ");
+      ss(e)
+    }
+  }
+
+  const unlockContractUser = async () => {   //--- Only Admin can unlock
+    try{
+      const receipt = await brokerContract.methods.userUnlockContract().send({from: account});
+      ss(receipt)
+      setIsLockedUser(false)
+    } catch (e) {
+      ss("error setting Amount with error: ");
+      ss(e)
+    }
+  }
+
+  const lockContractAdmin = async () => {  //--- Panic Lock. Only Admin
+    try{
+      const receipt = await brokerContract.methods.lockContract().send({from: account});
+      ss(receipt)
+      setIsLockedAdmin(true)
+    } catch (e) {
+      ss("error setting Lock with error: ");
+      ss(e)
+    }
+  }
+
+  const unlockContractAdmin = async () => {  //--- Panic Lock. Only Admin
+    try{
+      const receipt = await brokerContract.methods.unlockContract().send({from: account});
+      ss(receipt)
+      setIsLockedAdmin(false)
+    } catch (e) {
+      ss("error setting unLock with error: ");
+      ss(e)
+    }
+  }
+
 
   const isBroker = () => {
 
@@ -138,12 +190,8 @@ function App() {
       <div className="App">
         <header className="App-header">
           {/*{isLoggedIn && brokerAddress == account &&*/}
-          {isBroker() &&
-          <h2>Welcome Broker</h2>
-          }
-          {isPayer() &&
-          <h2>Welcome Customer</h2>
-          }
+          {isBroker() && <h2>Welcome Broker</h2> }
+          {isPayer() && <h2>Welcome Customer</h2> }
 
           {contractAmount > 0 && <p>Amount: ${contractAmount}</p>}
 
@@ -157,35 +205,35 @@ function App() {
           }
 
           {contractAmount == 0 && isBroker() &&
-          <>
-            <label htmlFor="amount">Enter Amount:</label>
-            <input
-                type="text"
-                name="amount"
-                onChange={event => setTotalAmount(event.target.value)}
-            />
-            <button onClick={setAmount}>Set Amount</button>
-          </>
+            <>
+              <label htmlFor="amount">Enter Amount:</label>
+              <input
+                  type="text"
+                  name="amount"
+                  onChange={event => setTotalAmount(event.target.value)}
+              />
+              <button onClick={setAmount}>Set Amount</button>
+            </>
 
           }
 
           {contractAmount != 0 && isBroker() &&
-          <>
-            <label htmlFor="amount">Change Amount:</label>
-            <input
-                type="text"
-                name="amount"
-                onChange={event => setTotalAmount(event.target.value)}
-            />
-            <button onClick={setAmount}>Set Amount</button>
-          </>
+            <>
+              <label htmlFor="amount">Change Amount:</label>
+              <input
+                  type="text"
+                  name="amount"
+                  onChange={event => setTotalAmount(event.target.value)}
+              />
+              <button onClick={setAmount}>Set Amount</button>
+            </>
           }
 
           {contractAmount != 0 && isLoggedIn && account != brokerAddress && payerAddress == '0x0000000000000000000000000000000000000000' &&
-          <>
-            <p>You can Register yourself as Payer</p>
-            <button onClick={setAmount}>Set Amount</button>
-          </>
+            <>
+              <p>You can Register yourself as Payer</p>
+              <button onClick={setAmount}>Set Amount</button>
+            </>
           }
 
 
