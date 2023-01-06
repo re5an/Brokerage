@@ -21,7 +21,8 @@ contract BrokerageContract {
         owner = msg.sender;
         //--- TODO : add my address
         // admin = address(0xc0526733fB1cc4DDF3E8f034Ede88A1e76899015);
-        admin = 0xc0526733fB1cc4DDF3E8f034Ede88A1e76899015;
+//        admin = 0xc0526733fB1cc4DDF3E8f034Ede88A1e76899015;
+        admin = msg.sender;
         // setToken(address)
     }
 
@@ -66,7 +67,8 @@ contract BrokerageContract {
         payerAddress = 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
         admin = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
         totalAmount = 1000;
-        setToken(0xd9145CCE52D386f254917e481eB44e9943F39138);
+//        setToken(0xd9145CCE52D386f254917e481eB44e9943F39138); //--- BUSD Address: 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56
+        setToken(0x573E48319C117712A4c60A94bfdAA9244b8a2384); //--- My own test token USDT
         // setToken(_tokenAddress);
     }
     /*<>----------------<>*/
