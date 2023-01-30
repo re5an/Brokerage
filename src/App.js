@@ -9,6 +9,7 @@ const ss = console.log;
 
 let brokerContract;
 let tokenContract;
+let web3;
 
 function App() {
 
@@ -26,12 +27,15 @@ function App() {
   const [hasFrozenAmount, setHasFrozenAmount] = useState(false)
 
   const [tokenAddress, setTokenAddress] = useState("0x573E48319C117712A4c60A94bfdAA9244b8a2384") //--- Admin can set this
-  const [contractAddress, setContractAddress] = useState("0xd3cCC38222005BBC6510B835c4542eA42424528b") //--- Admin can set this
+  const [contractAddress, setContractAddress] = useState("0x14433b43Da57831685bb4613a58E41f350907F1a") //--- Admin can set this
+  // const [contractAddress, setContractAddress] = useState("0x04d5917019070D290aEA116830B6b39dbC1ad28a") //--- Admin can set this
+
+  const [approvalStatus, setApprovalStatus] = useState(0)
 
   const loadWeb3 = async () => {
     if (typeof window.ethereum !== "undefined") {
       // Connect to metamask
-      const web3 = new Web3(window.ethereum);
+      web3 = new Web3(window.ethereum);
       try {
         await window.ethereum.enable();
       }
@@ -97,6 +101,22 @@ function App() {
     // ss('totalAmount : ', totalAmount)
     // ss('adminAddress : ', adminAddress)
 
+      //------- Read Past Events -------//
+      const events = await getPastEvents()
+    // const events2 = await getEvents()
+      if (events == null ) return 0;
+      for (let i = 0; i < events.length; i++){
+          if (events[i].event == "tokenFrozen") setHasFrozenAmount(true)
+          // if (events[i].event == "unfrozen") setHasFrozenAmount(false)
+          if (events[i].event == "userContractLocked") setIsLockedUser(true)
+          if (events[i].event == "userContractUnLocked") setIsLockedUser(false)
+          if (events[i].event == "contractUnLocked") setIsLockedAdmin(false)
+          if (events[i].event == "contractLocked") setIsLockedAdmin(true)
+          // if (events[i].event == "payerDontApprove") set...()
+          // if (events[i].event == "payerApproved") set...()
+      }
+
+
   }
 
   const handleLogin = async () => {
@@ -132,31 +152,24 @@ function App() {
         false
   }
 
-
-
-  const setPayer = async () => {
-    try{
-      const receipt = await brokerContract.methods.setPayer(account).send({from: account});
-      ss(receipt)
-    } catch (e) {
-      ss("error setting Payer with error: ");
-      ss(e)
-    }
-  }
-
-  const isPayer = () => {
-    return isLoggedIn ?
-        account === payerAddress :
-        false
+  const getPastEvents = async () => {
+      let events = await brokerContract.getPastEvents("allEvents");
+      ss("events: ", events);
+      return events;
   }
 
 
-
+  const getEvents = async () => {
+    let events = await brokerContract.events.allEvents();
+    // let events = await brokerContract.events.allEvents("tokenFrozen");
+    ss("events: ", events);
+    return events;
+  }
   const setAmount = async () => {
     try{
-      const receipt = await brokerContract.methods.adminSetTotalAmount(totalAmount).send({from: account});
+      const receipt = await brokerContract.methods.adminSetTotalAmount(web3.utils.toWei(totalAmount, 'ether')).send({from: account});
       ss(receipt)
-      setTotalAmount(totalAmount)
+      setTotalAmount(web3.utils.toWei(totalAmount, 'ether'))
     } catch (e) {
       ss("error setting Amount with error: ");
       ss(e)
@@ -172,7 +185,7 @@ function App() {
       ss(receipt)
       setIsLockedUser(true)
     } catch (e) {
-      ss("error setting Amount with error: ");
+      ss("error Locking Contract with error: ");
       ss(e)
     }
   }
@@ -215,45 +228,24 @@ function App() {
   const freezeTokens = async () => {
     try{
       const allowanceReceipt = await tokenContract.methods.approve(contractAddress, totalAmount).send({from: account});
+      ss("allowance Receipt : ", allowanceReceipt)
       const receipt = await brokerContract.methods.freezeToken().send({from: account});
       ss(receipt)
       setHasFrozenAmount(true)
     } catch (e) {
-      ss("error setting Token Address with error: ");
-      ss(e)
-    }
-  }
-
-  const payerApproves = async () => {
-    try{
-      const payerApprovesReceipt = await brokerContract.methods.payerApproves().send({from: account});
-      ss(payerApprovesReceipt)
-      // setHasFrozenAmount(true)
-    } catch (e) {
-      ss("error Payer Approve with error: ");
-      ss(e)
-    }
-  }
-
-  const payerApprovesNot = async () => {
-    try{
-      const payerApprovesReceipt = await brokerContract.methods.payerApprovesNot().send({from: account});
-      ss(payerApprovesReceipt)
-      // setHasFrozenAmount(true)
-    } catch (e) {
-      ss("error Payer approves not with error: ");
+      ss("error Freeze Token with error: ");
       ss(e)
     }
   }
 
   const contractBalanceToken = async () => {  //--- Amount of frozen USDT in contract
     try{
-      const balance = await tokenContract.methods.balanceOf(contractAddress).send({from: account});
-      ss(receipt)
+      const balance = await tokenContract.methods.balanceOf(contractAddress).call();
+      ss('Contract Balance', balance)
       // setIsLockedAdmin(false)
       return balance;
     } catch (e) {
-      ss("error setting unLock with error: ");
+      ss("error Getting contractBalanceToken with error: ");
       ss(e)
       return -1;
     }
@@ -262,7 +254,7 @@ function App() {
   const addressBalanceToken = async (address = account) => {  //--- Amount of frozen USDT in contract
     try{
       const balance = await tokenContract.methods.balanceOf(address).send({from: account});
-      ss(receipt)
+      ss(balance)
       // setIsLockedAdmin(false)
       return balance;
     } catch (e) {
@@ -284,6 +276,81 @@ function App() {
   }
 
 
+  // ----------------- Payer Functions ----------------- //
+
+
+  const setPayer = async () => {
+    try{
+      // await payerApproves()
+      // const receipt = await brokerContract.methods.setPayerAndFreeze().send({from: account});
+      const receipt = await brokerContract.methods.setPayer().send({from: account});
+      // const receipt = await brokerContract.methods.setPayer2(account).send({from: account});
+      ss(receipt)
+    } catch (e) {
+      ss("error setting Payer with error: ");
+      ss(e)
+    }
+  }
+
+  const isPayer = () => {
+    return isLoggedIn ?
+        account === payerAddress :
+        false
+  }
+
+  const payerApproves = async () => {
+    if (!isPayer()) {
+      alert("Only 'Payer' has this permission. You are not logged in with 'Payer' address ")
+      return false;
+    }
+    try{
+      const payerApprovesReceipt = await brokerContract.methods.payerApproves().send({from: account});
+      ss(payerApprovesReceipt)
+      setApprovalStatus(1)
+    } catch (e) {
+      ss("error Payer Approve with error: ");
+      ss(e)
+    }
+  }
+
+  const payerApprovesNot = async () => { //--- First Payer has to press 'Dont Approve', so the time lock starts, Then he may withdraw after certain period of time
+    if (!isPayer()) {
+      alert("Only 'Payer' has this permission. You are not logged in with 'Payer' address ")
+      return false;
+    }
+    try{
+      const payerApprovesNotReceipt = await brokerContract.methods.payerApprovesNot().send({from: account});
+      ss(payerApprovesNotReceipt)
+      setApprovalStatus(-1)
+    } catch (e) {
+      ss("error Payer approves not with error: ");
+      ss(e)
+    }
+  }
+
+  const payerWithdraw = async () => { //--- First Payer has to press 'Dont Approve', so the time lock starts, Then he may withdraw after certain period of time
+    if (!isPayer()) {
+      alert("Only 'Payer' has this permission. You are not logged in with 'Payer' address ")
+      return false;
+    }
+    if (approvalStatus <= 0){
+      alert("Its not approved yet.")
+      return false;
+
+    }
+    try{
+      const payerWithdrawReceipt = await brokerContract.methods.payerWithdraw().send({from: account});
+      ss(payerWithdrawReceipt)
+      // setHasFrozenAmount(true)
+    } catch (e) {
+      ss("error payerWithdraw with error: ");
+      ss(e)
+    }
+  }
+
+
+
+
 
 
   /**
@@ -300,6 +367,7 @@ function App() {
    * if User has Frozen amount => when Broker login, he can lock the contract (BrokerLock) it means they have problem and Broker thinks he is cheated
    * if User has Frozen amount => when Broker login, he can not change amount (BrokerLock) it means they have problem and Broker thinks he is cheated
    *
+   * First Payer has to press 'Dont Approve', so the time lock starts, Then he may withdraw after certain period of time
    *
    * --- Pages:
    * Welcome + login
@@ -330,6 +398,7 @@ function App() {
 
           {/* Set Amount */}
           {totalAmount == 0 && isBroker() && !hasFrozenAmount &&
+          payerAddress == '0x0000000000000000000000000000000000000000' &&
             <>
               <label htmlFor="amount">Enter Amount:</label>
               <input
@@ -344,7 +413,7 @@ function App() {
 
           {/* Change Amount */}
           {totalAmount != 0 && isBroker() && !hasFrozenAmount &&
-          payerAddress == '0x0000000000000000000000000000000000000000' &&
+          // payerAddress == '0x0000000000000000000000000000000000000000' &&
             <>
               <label htmlFor="amount">Change Amount:</label>
               <input
@@ -355,6 +424,43 @@ function App() {
               <button onClick={setAmount}>Set Amount</button>
             </>
           }
+
+            {/* Token has Frozen Message */}
+            {isBroker() && hasFrozenAmount &&
+            <>
+                <p>Customer has Frozen the ${totalAmount} $. </p>
+            </>
+            }
+
+            {/* Broker Lock Contract */}
+            {totalAmount != 0 && isBroker() && hasFrozenAmount && !isLockedUser &&
+            <>
+                <p>You can Lock the contract if you think something is not right</p>
+
+                <button onClick={lockContractUser}>Lock Contract</button>
+            </>
+            }
+
+            {/* Contract is Locked Message to Broker */}
+            {isLockedUser && isBroker() &&
+            <>
+                <p>The contract is locked by You</p>
+            </>
+            }
+
+            {/* Contract is Locked by ADMIN Message */}
+            {isLockedAdmin &&
+            <>
+                <p>The contract is locked by ADMIN because of some potential threat</p>
+            </>
+            }
+
+            {/* Contract is Locked Message to Payer */}
+            {isLockedUser && isPayer() &&
+            <>
+                <p>The contract is locked by Broker because of some issues. Please Contact the Broker for more information</p>
+            </>
+            }
 
           {/* Sign in as Payer */}
           {totalAmount != 0 && isLoggedIn && account != brokerAddress &&
@@ -378,15 +484,42 @@ function App() {
             </>
           }
 
-          {/* Payer Approves */}
-          {totalAmount != 0 && isLoggedIn && account === payerAddress && hasFrozenAmount &&
-          <>
-            <p>
-              If the deal is done successfully, you can unfreeze the frozen amount to its receiver
-            </p>
-            <button onClick={payerApproves}>Unfreeze USDT to Broker </button>
-          </>
+          {/* Payer Approves or DisApproves */}
+          {totalAmount != 0 && isLoggedIn && account === payerAddress && hasFrozenAmount
+          && approvalStatus == 0 &&
+            <>
+              <p>
+                If the deal is done successfully, you can unfreeze the frozen amount to its receiver
+              </p>
+              <button onClick={payerApproves}>Unfreeze USDT to Broker </button>
+                <p>
+                    Otherwise you can claim your money back by pressing the button below
+                </p>
+                <button onClick={payerApprovesNot}>Disapprove </button>
+            </>
           }
+
+            {/* Payer Has DisApproved */}
+            {totalAmount != 0 && isLoggedIn && account === payerAddress && hasFrozenAmount
+            && approvalStatus == -1 &&
+            <>
+                <p>
+                    You have already claimed that the deal was not a success. After 45 days you can claim your money back
+                </p>
+            </>
+            }
+
+            {/* Payer Withdraw ( after 45 days ) */}
+            {totalAmount != 0 && isLoggedIn && account === payerAddress && hasFrozenAmount
+            && approvalStatus == -1 &&
+            <>
+                <p>
+                    You can claim your money back
+                </p>
+
+                <button onClick={payerWithdraw}>Claim the money back </button>
+            </>
+            }
 
 
           {!isLoggedIn && <button onClick={handleLogin}> Please Login to continue</button>}
