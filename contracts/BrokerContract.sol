@@ -9,41 +9,46 @@ pragma solidity >=0.8.0 <0.9.0;
 contract BrokerageContract {
     address public owner;
     address public admin;
+    address public superAdmin;
 
-    address public brokerAddress;
+    address public adminAddress;
     address public payerAddress;
 
     uint256 public totalAmount;
+    string public title;
 
     IERC20 public token;
 
-    constructor(){
+    constructor(uint _amount, string memory _title, address _token , address _superAdmin, address _admin){
         owner = msg.sender;
+        superAdmin = _superAdmin;
         //--- TODO : add my address
-        // admin = address(0xc0526733fB1cc4DDF3E8f034Ede88A1e76899015);
-//        admin = 0xc0526733fB1cc4DDF3E8f034Ede88A1e76899015;
-        admin = msg.sender;
-        // setToken(address)
+        admin = _admin;
+        setToken(_token);
+        totalAmount = _amount;
+        title = _title;
+        // setToken(0x573E48319C117712A4c60A94bfdAA9244b8a2384);
     }
 
     /* --- if later wanted to change --- */
-    function adminSetTotalAmount(uint _amount) public onlyBroker notLocked {
+    function adminSetTotalAmount(uint _amount) public onlyAdmin notLocked {
         totalAmount = _amount;
     }
 
     function setAdmin(address _admin) public onlyOwner notLocked {
-        admin = _admin;
+        adminAddress = _admin;
+
     }
     /* --- if later wanted to change --- */
-    function setBroker(address _broker) external onlyOwner notLocked {
-        // require(brokerAddress == address(0), "broker already defined");
-        brokerAddress = _broker;
+    function setSuperAdmin(address _superAdmin ) external notLocked onlySuperAdmin {
+        // require(adminAddress == address(0), "admin already defined");
+        superAdmin = _superAdmin;
     }
 
-    /* --- when broker first runs --- */
-    function setBrokerAndAmount(uint _amount) external notLocked {
-        require(brokerAddress == address(0), "broker already defined");
-        brokerAddress = msg.sender;
+    /* --- when admin first runs --- */
+    function setAdminAndAmount(uint _amount) external notLocked {
+        require(adminAddress == address(0), "admin already defined");
+        adminAddress = msg.sender;
         totalAmount = _amount;
     }
 
@@ -55,22 +60,25 @@ contract BrokerageContract {
         freezeToken();
     }
 
-    function adminSetPayerAddress(address _payer) external onlyOwner notLocked {
+    function setPayer() external notLocked {
+        require(msg.sender != adminAddress, "you are admin");
+        payerAddress = msg.sender;
+    }
+    function setPayer2(address _payer) external notLocked {
+        require(_payer != adminAddress, "you are admin");
+        payerAddress = _payer;
+    }
+
+    function superAdminSetPayerAddress(address _payer) external onlyOwner notLocked {
         payerAddress = _payer;
     }
 
     /*--------< INIT >--------*/
     // TODO: Remove this part later
     // function init(address _tokenAddress) public {
-    function init() public {
-        brokerAddress = 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
-        payerAddress = 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
-        admin = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
-        totalAmount = 1000;
-//        setToken(0xd9145CCE52D386f254917e481eB44e9943F39138); //--- BUSD Address: 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56
-        setToken(0x573E48319C117712A4c60A94bfdAA9244b8a2384); //--- My own test token USDT
-        // setToken(_tokenAddress);
-    }
+//    function init() public {
+//
+//    }
     /*<>----------------<>*/
 
     address tokenAddress;
@@ -84,7 +92,6 @@ contract BrokerageContract {
     // function freezeToken() public onlyPayer {
     function freezeToken() public {
         require(token.balanceOf(payerAddress) >= totalAmount, "not enough Token");
-        // require() //--- check if payer has enough BNB (gas fee)
         token.transferFrom(msg.sender, address(this), totalAmount);
         emit tokenFrozen(payerAddress, totalAmount, block.timestamp);
     }
@@ -118,32 +125,28 @@ contract BrokerageContract {
         require(token.balanceOf(address(this)) >= totalAmount, "not enough Token in contract");
         // require(); //--- check if payer has enough BNB (gas fee)
 
-        //--- Broker (Deal is done)
+        //--- admin (Deal is done)
         if (_isApproved){
             // uint _adminShare = totalAmount * 0.05;
-            uint _adminShare = totalAmount / 20;
+            uint _superAdminShare = totalAmount / 20;
 
-            emit dd("admin share", _adminShare, msg.sender);
+            emit dd("superAdmin share", _superAdminShare, msg.sender);
 
-            token.transfer(payable(admin), _adminShare);
+            token.transfer(payable(superAdmin), _superAdminShare);
+            emit unfrozen("superAdmin", _superAdminShare, block.timestamp);
+
+            uint _adminShare = totalAmount - _superAdminShare ;
+
+            emit dd("_admin share", _adminShare, msg.sender);
+
+            // token.transfer(payable(adminAddress), token.balanceOf(address(this)));
+            token.transfer(payable(adminAddress), _adminShare);
             emit unfrozen("admin", _adminShare, block.timestamp);
-
-            uint _brokerShare = totalAmount - _adminShare ;
-
-            emit dd("_broker share", _brokerShare, msg.sender);
-
-            // token.transfer(payable(brokerAddress), token.balanceOf(address(this)));
-            token.transfer(payable(brokerAddress), _brokerShare);
-            emit unfrozen("broker", _brokerShare, block.timestamp);
         }
         //--- Payer (Deal is off)
         else {
             emit dd("block.timestamp", block.timestamp, msg.sender);
             emit dd("endDuration", endDuration, msg.sender);
-            // console.log( "endDuration:");
-            // console.log( endDuration);
-            // console.log( "timestamp:");
-            // console.log( block.timestamp);
             require(block.timestamp >= endDuration, "Time Locked. Have to wait");
             token.transfer(payable(payerAddress), totalAmount);
             emit unfrozen("payer", totalAmount, block.timestamp);
@@ -157,7 +160,6 @@ contract BrokerageContract {
     }
 
     function timeNow() public view returns(uint) {
-        // console.log(block.timestamp);
         return block.timestamp;
     }
 
@@ -172,20 +174,28 @@ contract BrokerageContract {
 
     /*--------< Time Lock Part >--------*/
     uint public endDuration;
-    uint public duration = 45 days;
-    // uint public duration = 1 minutes;
-    function setDuration(uint _duration) public onlyBroker {
+    uint public duration = 1 minutes;
+
+    function setDuration(uint _duration) public {
         duration = _duration;
     }
 
-    function setEndDuration() internal {
+    // function setEndDuration() internal {
+    function setEndDuration() public {
         endDuration = duration + block.timestamp;
-        emit dd("end Duration", endDuration, msg.sender);
+        // emit dd("end Duration", endDuration, msg.sender);
+    }
+
+
+    function test() public notTimeLocked view returns(uint) {
+        // console.log(endDuration);
+        // return block.timestamp - endDuration;
+        return endDuration;
     }
 
     modifier notTimeLocked {
         require(block.timestamp >= endDuration, "Time Locked. Have to wait");
-        emit dd("notTimeLocked", block.timestamp, msg.sender);
+        // emit dd("notTimeLocked", block.timestamp, msg.sender);
         _;
     }
     /*<>----------------<>*/
@@ -237,62 +247,68 @@ contract BrokerageContract {
     receive() external payable {}
 
 
-    modifier onlyBroker(){
-        require(msg.sender == brokerAddress || msg.sender == admin, "only Broker");
+    modifier onlyAdmin(){
+        require(msg.sender == adminAddress || msg.sender == superAdmin, "only admin");
         _;
     }
 
     modifier onlyPayer(){
-        require(msg.sender == payerAddress || msg.sender == admin, "only Seller");
+        require(msg.sender == payerAddress || msg.sender == superAdmin, "only Seller");
         _;
     }
 
-    modifier onlyAdmin(){
-        require(msg.sender == admin, "only Admin");
+    modifier onlySuperAdmin(){
+        require(msg.sender == superAdmin, "only superAdmin");
         _;
     }
 
     modifier onlyOwner(){
-        require(msg.sender == admin || msg.sender == owner, "only Admins");
+        require(msg.sender == superAdmin || msg.sender == owner, "only superAdmins");
         _;
     }
 
     modifier onlyUsers(){
-        require(msg.sender == brokerAddress || msg.sender == admin || msg.sender == payerAddress || msg.sender == owner, "only users");
+        require(msg.sender == adminAddress || msg.sender == superAdmin || msg.sender == payerAddress || msg.sender == owner, "only users");
         _;
     }
 
 
     /*--------< Extra maintenance functionalities >--------*/
 
-    // function withrawOtherTokens(address _tokenAddress, address _receiver) external onlyAdmin {
+    // function withrawOtherTokens(address _tokenAddress, address _receiver) external onlysuperAdmin {
     function withrawOtherTokens(address _tokenAddress) external onlyOwner {
-        // require(_tokenAddress != tokenAddress, "This is the Frozen currency and cant get wid=thdrawn like this");
         IERC20 otherToken =  IERC20(_tokenAddress);
         require(otherToken.balanceOf(address(this)) > 0 , "this contract does not have this token");
-        otherToken.transfer(admin, otherToken.balanceOf(address(this)));
+        otherToken.transfer(superAdmin, otherToken.balanceOf(address(this)));
 
     }
 
-    // function test(address _address) public returns(address) {
-    //     //   0x69bab60997a2f5cbee668e5087dd9f91437206bb
-
-    //     IERC20 token2 = IERC20(_address);
-    //     // emit log(address(token2), token2, block.timestamp);
-    //     // console.log("token = "token2);
-    //     // console.log("Address :", address(token2));
-    //     return address(token2);
-    // }
-    // event log(address indexed _address, IERC20 indexed _token, string _time);
-
-    /*----------------<>*/
-
-    /*--------<  >--------*/
-
-    // function
 
 }
 
+contract BrokerFactory {
+    BrokerageContract[] public brokerContracts;
+    address public admin;
+
+    constructor(){
+        admin = msg.sender;
+    }
+
+    function createContract (uint _amount, string memory _title, address _token ) external {
+        BrokerageContract brokerContract = new BrokerageContract(_amount, _title, _token, admin, msg.sender);
+        brokerContracts.push(brokerContract);
+    }
+
+
+
+
+    /* ---------------------------- */
+    uint public endDuration;
+
+
+
+    /* ---------------------------- */
+}
 
 // pragma solidity ^0.8.13;
 
