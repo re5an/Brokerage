@@ -8,22 +8,22 @@ pragma solidity >=0.8.0 <0.9.0;
 
 contract BrokerageContract {
     address public owner;
+    address public seller;
     address public admin;
-    address public superAdmin;
 
-    address public adminAddress;
-    address public payerAddress;
+    address public sellerAddress;
+    address public customerAddress;
 
     uint256 public totalAmount;
     string public title;
 
     IERC20 public token;
 
-    constructor(uint _amount, string memory _title, address _token , address _superAdmin, address _admin){
+    constructor(uint _amount, string memory _title, address _token , address _admin, address _seller){
         owner = msg.sender;
-        superAdmin = _superAdmin;
-        //--- TODO : add my address
         admin = _admin;
+        //--- TODO : add my address
+        seller = _seller;
         setToken(_token);
         totalAmount = _amount;
         title = _title;
@@ -35,50 +35,50 @@ contract BrokerageContract {
         totalAmount = _amount;
     }
 
-    function setAdmin(address _admin) public onlyOwner notLocked {
-        adminAddress = _admin;
+    function setSeller(address _seller) public onlyOwner notLocked {
+        sellerAddress = _seller;
 
     }
     /* --- if later wanted to change --- */
-    function setSuperAdmin(address _superAdmin ) external notLocked onlySuperAdmin {
+    function setAdmin(address _admin ) external notLocked onlyAdmin {
         // require(adminAddress == address(0), "admin already defined");
-        superAdmin = _superAdmin;
+        admin = _admin;
     }
 
-    /* --- when admin first runs --- */
-    function setAdminAndAmount(uint _amount) external notLocked {
-        require(adminAddress == address(0), "admin already defined");
-        adminAddress = msg.sender;
+    /* --- when seller first runs --- */
+    function setSellerAndAmount(uint _amount) external notLocked {
+        require(sellerAddress == address(0), "seller already defined");
+        sellerAddress = msg.sender;
         totalAmount = _amount;
     }
 
-    /* --- when Payer first signs --- */
-    function setPayerAndFreeze() public notLocked {
-        // payerAddress = _payer;
-        require(token.balanceOf(payerAddress) >= totalAmount, "not enough Token");
-        payerAddress = msg.sender;
+    /* --- when customer first signs --- */
+    function setCustomerAndFreeze() public notLocked {
+        // customerAddress = _customer;
+        require(token.balanceOf(customerAddress) >= totalAmount, "not enough Token");
+        customerAddress = msg.sender;
         freezeToken();
     }
 
-    function setPayer() external notLocked {
-        require(msg.sender != adminAddress, "you are admin");
-        payerAddress = msg.sender;
+    function setCustomer() external notLocked {
+        require(msg.sender != sellerAddress, "you are seller");
+        customerAddress = msg.sender;
     }
-    function setPayer2(address _payer) external notLocked {
-        require(_payer != adminAddress, "you are admin");
-        payerAddress = _payer;
+    function setCustomer2(address _customer) external notLocked {
+        require(_customer != sellerAddress, "you are seller");
+        customerAddress = _customer;
     }
 
-    function superAdminSetPayerAddress(address _payer) external onlyOwner notLocked {
-        payerAddress = _payer;
+    function adminSetCustomerAddress(address _customer) external onlyOwner notLocked {
+        customerAddress = _customer;
     }
 
     /*--------< INIT >--------*/
     // TODO: Remove this part later
     // function init(address _tokenAddress) public {
-//    function init() public {
-//
-//    }
+    //    function init() public {
+    //
+    //    }
     /*<>----------------<>*/
 
     address tokenAddress;
@@ -89,67 +89,74 @@ contract BrokerageContract {
         tokenAddress = _tokenAddress;
     }
 
-    // function freezeToken() public onlyPayer {
+    // function freezeToken() public onlycustomer {
     function freezeToken() public {
-        require(token.balanceOf(payerAddress) >= totalAmount, "not enough Token");
+        require(token.balanceOf(customerAddress) >= totalAmount, "not enough Token");
         token.transferFrom(msg.sender, address(this), totalAmount);
-        emit tokenFrozen(payerAddress, totalAmount, block.timestamp);
+        emit tokenFrozen(customerAddress, totalAmount, block.timestamp);
     }
 
-    event tokenFrozen(address indexed _payer, uint _amount, uint indexed _date);
+    event tokenFrozen(address indexed _customer, uint _amount, uint indexed _date);
 
-    /* --- when Payer Approves --- */
-    function payerApproves() onlyPayer external {
+    /* --- when customer Approves --- */
+    function customerApproves() onlyCustomer external {
         require(token.balanceOf(address(this)) >= 0, "No Token in Contract");
         unfreezeToken(true);
-        emit payerApproved(msg.sender, block.timestamp);
+        emit customerApproved(msg.sender, block.timestamp);
     }
 
-    event payerApproved(address indexed approver, uint indexed time);
+    event customerApproved(address indexed approver, uint indexed time);
 
-    /* --- when Payer Approves NOT --- */
-    function payerApprovesNot() onlyPayer external {
+    /* --- when customer Approves NOT --- */
+    function customerApprovesNot() onlyCustomer external {
         require(token.balanceOf(address(this)) >= 0, "No Token in Contract");
         setEndDuration();
-        emit payerDontApprove(msg.sender, block.timestamp);
+        emit customerDontApprove(msg.sender, block.timestamp);
         // unfreezeToken(false);
     }
-    event payerDontApprove(address indexed approver, uint indexed time);
+    event customerDontApprove(address indexed approver, uint indexed time);
 
-    /* --- After Payer Approves Not, if want to withdraw --- */
-    function payerWithdraw() external notLocked {
+    /* --- After customer Approves Not, if want to withdraw --- */
+    function customerWithdraw() external notLocked {
         unfreezeToken(false);
+    }
+
+    uint public adminShare;
+
+    function setAdminShare(uint _share) external onlyAdmin{
+        adminShare = _share;
     }
 
     function unfreezeToken(bool _isApproved) internal notLocked userNotLocked {
         require(token.balanceOf(address(this)) >= totalAmount, "not enough Token in contract");
-        // require(); //--- check if payer has enough BNB (gas fee)
+        // require(); //--- check if customer has enough BNB (gas fee)
 
-        //--- admin (Deal is done)
+        //--- seller (Deal is done)
         if (_isApproved){
-            // uint _adminShare = totalAmount * 0.05;
-            uint _superAdminShare = totalAmount / 20;
 
-            emit dd("superAdmin share", _superAdminShare, msg.sender);
+            // uint _adminShare = totalAmount / 20;
+            uint _adminShare = totalAmount / (100 / adminShare);
 
-            token.transfer(payable(superAdmin), _superAdminShare);
-            emit unfrozen("superAdmin", _superAdminShare, block.timestamp);
+            emit dd("admin share", _adminShare, msg.sender);
 
-            uint _adminShare = totalAmount - _superAdminShare ;
-
-            emit dd("_admin share", _adminShare, msg.sender);
-
-            // token.transfer(payable(adminAddress), token.balanceOf(address(this)));
-            token.transfer(payable(adminAddress), _adminShare);
+            token.transfer(payable(admin), _adminShare);
             emit unfrozen("admin", _adminShare, block.timestamp);
+
+            uint _sellerShare = totalAmount - _adminShare ;
+
+            emit dd("_seller share", _sellerShare, msg.sender);
+
+            // token.transfer(payable(sellerAddress), token.balanceOf(address(this)));
+            token.transfer(payable(sellerAddress), _sellerShare);
+            emit unfrozen("seller", _sellerShare, block.timestamp);
         }
-        //--- Payer (Deal is off)
+        //--- customer (Deal is off)
         else {
             emit dd("block.timestamp", block.timestamp, msg.sender);
             emit dd("endDuration", endDuration, msg.sender);
             require(block.timestamp >= endDuration, "Time Locked. Have to wait");
-            token.transfer(payable(payerAddress), totalAmount);
-            emit unfrozen("payer", totalAmount, block.timestamp);
+            token.transfer(payable(customerAddress), totalAmount);
+            emit unfrozen("customer", totalAmount, block.timestamp);
         }
 
     }
@@ -174,10 +181,15 @@ contract BrokerageContract {
 
     /*--------< Time Lock Part >--------*/
     uint public endDuration;
-    uint public duration = 1 minutes;
+    uint public duration = 45 minutes;
+    uint public duration2 = 90 days;
 
     function setDuration(uint _duration) public {
         duration = _duration;
+    }
+
+    function setDuration2(uint _duration) public {
+        duration2 = _duration;
     }
 
     // function setEndDuration() internal {
@@ -247,39 +259,39 @@ contract BrokerageContract {
     receive() external payable {}
 
 
+    modifier onlySeller(){
+        require(msg.sender == sellerAddress || msg.sender == admin, "only seller");
+        _;
+    }
+
+    modifier onlyCustomer(){
+        require(msg.sender == customerAddress || msg.sender == admin, "only Seller");
+        _;
+    }
+
     modifier onlyAdmin(){
-        require(msg.sender == adminAddress || msg.sender == superAdmin, "only admin");
-        _;
-    }
-
-    modifier onlyPayer(){
-        require(msg.sender == payerAddress || msg.sender == superAdmin, "only Seller");
-        _;
-    }
-
-    modifier onlySuperAdmin(){
-        require(msg.sender == superAdmin, "only superAdmin");
+        require(msg.sender == admin, "only admin");
         _;
     }
 
     modifier onlyOwner(){
-        require(msg.sender == superAdmin || msg.sender == owner, "only superAdmins");
+        require(msg.sender == admin || msg.sender == owner, "only admins");
         _;
     }
 
     modifier onlyUsers(){
-        require(msg.sender == adminAddress || msg.sender == superAdmin || msg.sender == payerAddress || msg.sender == owner, "only users");
+        require(msg.sender == sellerAddress || msg.sender == admin || msg.sender == customerAddress || msg.sender == owner, "only users");
         _;
     }
 
 
     /*--------< Extra maintenance functionalities >--------*/
 
-    // function withrawOtherTokens(address _tokenAddress, address _receiver) external onlysuperAdmin {
-    function withrawOtherTokens(address _tokenAddress) external onlyOwner {
+    // function withrawOtherTokens(address _tokenAddress, address _receiver) external onlyAdmin {
+    function withdrawOtherTokens(address _tokenAddress) external onlyOwner {
         IERC20 otherToken =  IERC20(_tokenAddress);
         require(otherToken.balanceOf(address(this)) > 0 , "this contract does not have this token");
-        otherToken.transfer(superAdmin, otherToken.balanceOf(address(this)));
+        otherToken.transfer(admin, otherToken.balanceOf(address(this)));
 
     }
 
